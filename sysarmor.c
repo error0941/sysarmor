@@ -6,12 +6,26 @@
 #include <errno.h>
 
 #define VERSION "1.0.0-PROD"
+
+// 3 argümanlı sistem çağrıları için Assembly bloğu
 static inline long raw_syscall3(long number, long arg1, long arg2, long arg3) {
     long ret;
     __asm__ volatile (
         "syscall"
         : "=a" (ret)
         : "a" (number), "D" (arg1), "S" (arg2), "d" (arg3)
+        : "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
+// 4 argümanlı sistem çağrıları için eksik olan ve eklenmesi gereken Assembly bloğu (x86_64 için 4. argüman r10 register'ına alınır)
+static inline long raw_syscall4(long number, long arg1, long arg2, long arg3, long arg4) {
+    long ret;
+    __asm__ volatile (
+        "syscall"
+        : "=a" (ret)
+        : "a" (number), "D" (arg1), "S" (arg2), "d" (arg3), "r10" (arg4)
         : "rcx", "r11", "memory"
     );
     return ret;
@@ -47,7 +61,7 @@ void audit_and_harden_file(const char *path) {
             // Güvenli izin maskesi: Others write (S_IWOTH) iznini kaldır
             mode_t secured_mode = st.st_mode & ~S_IWOTH;
 
-            // fchmod ile doğrudan dosya tanımlayıcısı üzerinden güvenli sıkılaştırma
+            // fchmod ile doğrudan dosya tanımlayıcısı üzerinden güvenli sıkılaştırma (== 0 kontrolü düzeltilmiş haliyle)
             if (raw_syscall3(91, fd, secured_mode, 0) == 0) {
                 printf("    [+] BAŞARILI: '%s' güvenli duruma getirildi (İzinler sıkılaştırıldı).\n", path);
             } else {
