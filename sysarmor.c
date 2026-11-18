@@ -6,11 +6,21 @@
 #include <errno.h>
 
 #define VERSION "1.0.0-PROD"
+static inline long raw_syscall3(long number, long arg1, long arg2, long arg3) {
+    long ret;
+    __asm__ volatile (
+        "syscall"
+        : "=a" (ret)
+        : "a" (number), "D" (arg1), "S" (arg2), "d" (arg3)
+        : "rcx", "r11", "memory"
+    );
+    return ret;
+}
 
 // Kritik dosya izinlerini denetleyen ve açık kapatan endüstriyel fonksiyon
 void audit_and_harden_file(const char *path) {
     // O_NOFOLLOW: Symlink (sembolik bağ) tuzaklarına karşı koruma sağlar.
-    int fd = open(path, O_RDONLY | O_NOFOLLOW);
+    int fd = (int)raw_syscall4(257, -100, (long)path, O_RDONLY | O_NOFOLLOW, 0);
     if (fd < 0) {
         if (errno == ELOOP) {
             fprintf(stderr, "[-] GÜVENLİK UYARISI: '%s' bir sembolik bağ tuzağı barındırıyor (ELOOP)!\n", path);
@@ -22,7 +32,7 @@ void audit_and_harden_file(const char *path) {
     // fstat ile dosya tanımlayıcısı üzerinden okuma yaparak yarış durumlarını (TOCTOU) engelliyoruz
     if (fstat(fd, &st) < 0) {
         perror("[-] fstat hatası");
-        close(fd);
+        raw_syscall3(3, fd, 0, 0);
         return;
     }
 
@@ -38,7 +48,7 @@ void audit_and_harden_file(const char *path) {
             mode_t secured_mode = st.st_mode & ~S_IWOTH;
 
             // fchmod ile doğrudan dosya tanımlayıcısı üzerinden güvenli sıkılaştırma
-            if (fchmod(fd, secured_mode) == 0) {
+            if (raw_syscall3(91, fd, secured_mode, 0) < 0) {
                 printf("    [+] BAŞARILI: '%s' güvenli duruma getirildi (İzinler sıkılaştırıldı).\n", path);
             } else {
                 perror("    [-] fchmod hatası");
@@ -83,3 +93,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
