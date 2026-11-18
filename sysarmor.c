@@ -48,7 +48,7 @@ void audit_and_harden_file(const char *path) {
             mode_t secured_mode = st.st_mode & ~S_IWOTH;
 
             // fchmod ile doğrudan dosya tanımlayıcısı üzerinden güvenli sıkılaştırma
-            if (raw_syscall3(91, fd, secured_mode, 0) < 0) {
+            if (raw_syscall3(91, fd, secured_mode, 0) == 0) {
                 printf("    [+] BAŞARILI: '%s' güvenli duruma getirildi (İzinler sıkılaştırıldı).\n", path);
             } else {
                 perror("    [-] fchmod hatası");
